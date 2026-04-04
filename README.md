@@ -2,6 +2,8 @@
 
 **The Steam API guide we wish existed.**
 
+A practical guide to the Steamworks Web API covering sales data, wishlist reporting, reviews, player counts, achievements and partner endpoints. Focused on real-world usage, common pitfalls and clear examples for game developers.
+
 🌍 *[Türkçe](translations/README.tr.md) · [Deutsch](translations/README.de.md)*
 
 ---

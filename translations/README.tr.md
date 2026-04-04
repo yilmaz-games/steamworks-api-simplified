@@ -2,6 +2,8 @@
 
 **Keşke olsaydı dediğimiz Steam API rehberi.**
 
+Satış verileri, istek listesi raporlama, incelemeler, oyuncu sayıları, başarımlar ve partner endpoint'lerini kapsayan pratik bir Steamworks Web API rehberi. Gerçek kullanım senaryolarına, yaygın tuzaklara ve oyun geliştiriciler için anlaşılır örneklere odaklanır.
+
 🌍 *[English](../README.md) · [Deutsch](README.de.md)*
 
 ---

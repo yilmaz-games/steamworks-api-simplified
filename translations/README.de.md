@@ -2,6 +2,8 @@
 
 **Der Steam-API-Guide, den wir uns gewünscht hätten.**
 
+Ein praktischer Guide zur Steamworks Web API mit Verkaufsdaten, Wunschlisten-Reporting, Reviews, Spielerzahlen, Achievements und Partner-Endpoints. Fokus auf reale Anwendungsfälle, häufige Stolperfallen und klare Beispiele für Spieleentwickler.
+
 🌍 *[English](../README.md) · [Türkçe](README.tr.md)*
 
 ---
