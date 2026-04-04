@@ -1,0 +1,39 @@
+name: Suggest Improvement
+description: Suggest a new endpoint, better explanation, or other improvement
+title: "[Improvement]: "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Have an idea to make this guide better? We're all ears.
+
+  - type: dropdown
+    id: type
+    attributes:
+      label: What kind of improvement?
+      options:
+        - Missing endpoint / API feature
+        - Better explanation needed
+        - Code example request
+        - Formatting / structure
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Describe the improvement
+      description: What would you like to see added or changed?
+      placeholder: "It would be helpful to have a section about..."
+    validations:
+      required: true
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional context (optional)
+      description: Any links, screenshots, or code examples that help explain your suggestion
+    validations:
+      required: false

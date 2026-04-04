@@ -1,0 +1,46 @@
+name: Translation Volunteer
+description: Volunteer to translate the guide into a new language
+title: "[Translation]: "
+labels: ["translation"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for wanting to help make this guide accessible to more developers!
+
+  - type: input
+    id: language
+    attributes:
+      label: Language
+      description: Which language do you want to translate to?
+      placeholder: "e.g., French, Japanese, Korean, Spanish"
+    validations:
+      required: true
+
+  - type: input
+    id: language-code
+    attributes:
+      label: ISO 639-1 language code
+      description: "The two-letter code for the language (see: https://en.wikipedia.org/wiki/List_of_ISO_639-1_codes)"
+      placeholder: "e.g., fr, ja, ko, es"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: native-speaker
+    attributes:
+      label: Are you a native speaker?
+      options:
+        - "Yes"
+        - "No, but fluent"
+        - "I'll need a reviewer"
+    validations:
+      required: true
+
+  - type: textarea
+    id: notes
+    attributes:
+      label: Additional notes (optional)
+      description: Anything else you'd like to mention (timeline, need a co-translator, etc.)
+    validations:
+      required: false

@@ -1,0 +1,45 @@
+name: Report Incorrect Info
+description: Something in the guide is wrong, outdated, or misleading
+title: "[Fix]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for helping keep this guide accurate!
+
+  - type: input
+    id: section
+    attributes:
+      label: Which section?
+      description: Which part of the guide has the issue?
+      placeholder: "e.g., Endpoints: Sales & Revenue → GetDetailedSales"
+    validations:
+      required: true
+
+  - type: textarea
+    id: whats-wrong
+    attributes:
+      label: What's wrong?
+      description: Describe the error or outdated information
+      placeholder: "The response example shows field X but the actual API returns field Y..."
+    validations:
+      required: true
+
+  - type: textarea
+    id: correct-info
+    attributes:
+      label: What should it say instead?
+      description: If you know the correct information, share it here
+      placeholder: "The correct field name is..."
+    validations:
+      required: false
+
+  - type: input
+    id: source
+    attributes:
+      label: Source (optional)
+      description: Link to official docs, a working example, or where you verified this
+      placeholder: "https://partner.steamgames.com/doc/..."
+    validations:
+      required: false
