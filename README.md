@@ -41,6 +41,7 @@ We've been there. This guide is everything we learned, organized the way we wish
 
 ---
 
+<a name="new-to-apis"></a>
 <details>
 <summary><b>New to APIs? Start here</b></summary>
 
@@ -905,7 +906,7 @@ We'd love your help. Check out our [Contributing Guide](.github/CONTRIBUTING.md)
 2. Make your changes
 3. Submit a PR
 
-Translations go in `translations/README.{language-code}.md`. See [existing translations](#) for reference.
+Translations go in `translations/README.{language-code}.md`. See [existing translations](translations/) for reference.
 
 If this guide saved you time, consider giving it a ⭐. It helps other indie devs find it too.
 
