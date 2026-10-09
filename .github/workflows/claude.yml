@@ -20,6 +20,26 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  # On a public repo, when the owner mentions @claude on an issue or pull request a
+  # stranger opened, the claude job below doesn't start. This says why, so nobody waits.
+  stranger-thread:
+    if: |
+      !github.event.repository.private && github.event_name == 'issue_comment' &&
+      contains(github.event.comment.body, '@claude') &&
+      contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association) &&
+      !contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.issue.author_association)
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+      pull-requests: write
+    steps:
+      - env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          NUMBER: ${{ github.event.issue.number }}
+        run: |
+          gh api "repos/$REPO/issues/$NUMBER/comments" -f body="Claude doesn't work on threads that someone outside the project opened in a public repo, because their text could try to steer it. To have Claude work on this, open a new issue that says what you want in your own words and mention \`@claude\` there." >/dev/null
+
   claude:
     # On a public repo anyone can open issues and comment, and Claude reads the whole
     # thread, so a stranger's text could try to steer it. There it only starts on issues
