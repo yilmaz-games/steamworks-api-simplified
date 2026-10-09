@@ -39,6 +39,7 @@ Biz de aynı şeyleri yaşadık. Bu rehber, öğrendiklerimizi birisinin bize an
 
 ---
 
+<a name="apilere-yeni-misiniz"></a>
 <details>
 <summary><b>API'lere Yeni misiniz? Buradan Başlayın</b></summary>
 
@@ -729,7 +730,7 @@ Yardımınızı çok isteriz. Detaylar için [Katkıda Bulunma Rehberi](../.gith
 2. Değişikliklerinizi yapın
 3. PR gönderin
 
-Çeviriler `translations/README.{dil-kodu}.md` formatında gider. Referans için [mevcut çevirilere](#) bakın.
+Çeviriler `translations/README.{dil-kodu}.md` formatında gider. Referans için [mevcut çevirilere](./) bakın.
 
 Bu rehber size zaman kazandırdıysa, bir ⭐ vermeyi düşünün. Diğer indie geliştiricilerin de bulmasına yardımcı olur.
 

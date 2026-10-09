@@ -39,6 +39,7 @@ Kennen wir. Dieser Guide ist alles, was wir gelernt haben, so aufbereitet, wie w
 
 ---
 
+<a name="neu-bei-apis"></a>
 <details>
 <summary><b>Neu bei APIs? Hier anfangen</b></summary>
 
@@ -729,7 +730,7 @@ Wir freuen uns über Hilfe. Schau dir unseren [Mitwirkungs-Guide](../.github/CON
 2. Nimm deine Änderungen vor
 3. Erstelle einen Pull Request
 
-Übersetzungen kommen nach `translations/README.{sprachcode}.md`. Schau dir [bestehende Übersetzungen](#) als Referenz an.
+Übersetzungen kommen nach `translations/README.{sprachcode}.md`. Schau dir [bestehende Übersetzungen](./) als Referenz an.
 
 Wenn dir dieser Guide Zeit gespart hat, überleg dir einen ⭐ zu geben. Das hilft anderen Indie-Devs, ihn zu finden.
 
