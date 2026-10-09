@@ -24,6 +24,7 @@ The repo also contains `steamworks-api-specialist/SKILL.md`, a condensed AI-agen
 - Translations use ISO 639-1 codes: `translations/README.{code}.md` (e.g., `README.fr.md`).
 - When updating the English README, corresponding sections in translations may need updating too.
 - The SKILL.md file should stay in sync with README.md content — if endpoints or gotchas change in the README, reflect those changes in SKILL.md.
+- SKILL.md is also installed as a Claude Code skill from the maintainers' private `yilmaz-games/skills` repo, cloned at `~/.claude/skills`. After SKILL.md changes here, copy it to `~/.claude/skills/steamworks-api-specialist/SKILL.md` through a branch and PR in that repo, and check whether the older `steam-api` skill there needs the same change.
 
 ## Content Rules
 
