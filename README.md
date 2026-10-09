@@ -118,7 +118,7 @@ Before diving into endpoints, here's what you need for each type of data:
 |---------------|----------|---------------|
 | Current online players | No key needed | api.steampowered.com |
 | App details, pricing | No key needed | store.steampowered.com |
-| Reviews | No key needed | store.steampowered.com |
+| Reviews | No key needed | api.steampowered.com |
 | News | No key needed | api.steampowered.com |
 | Achievement percentages | No key needed | api.steampowered.com |
 | **Sales & revenue** | **Financial key** or Publisher key (with Sales Data perm) | partner.steam-api.com |
@@ -253,23 +253,135 @@ The `price_overview` object contains:
 
 ### Reviews
 
+> ⚠️ **Changed in October 2026.** Steam disables the old `store.steampowered.com/appreviews/{appid}?json=1` endpoint on **October 22, 2026**. If your code still calls it, see [Migrating from /appreviews](#migrating-from-appreviews) below.
+
 ```
-GET https://store.steampowered.com/appreviews/{appid}?json=1&filter=recent&language=all&num_per_page=100
+GET https://api.steampowered.com/IUserReviewsService/GetAppReviews/v1/?appid={appid}&filter=1&languages[0]=all&purchase_type=1&num_per_page=100
 ```
+
+Returns a page of public reviews for any app, plus the review score summary. No key needed.
 
 **Parameters:**
 | Parameter | Values | Description |
 |-----------|--------|-------------|
-| `filter` | `recent`, `updated`, `all` | Sort order |
-| `language` | `all` or language code | Filter by language |
-| `num_per_page` | 1–100 | Results per page |
-| `cursor` | `*` (first page), then value from response | Pagination |
-| `review_type` | `all`, `positive`, `negative` | Filter by sentiment |
-| `purchase_type` | `all`, `steam`, `non_steam_purchase` | Filter by purchase source |
+| `appid` | Your App ID | Required |
+| `filter` | `0` Helpful (default), `1` Recent, `2` Updated, `3` Funny | Sort order. Helpful only searches the last `day_range` days (default 30), so use `1` or `2` to page through every review |
+| `languages[0]`, `languages[1]`, ... | `all` or [API language codes](#steam-language-codes) (`english`, `turkish`, ...) | **Defaults to English only.** Pass `languages[0]=all` to get every language |
+| `num_per_page` | 1–100 | Results per page (default 20) |
+| `cursor` | `*` (first page), then value from response | Pagination. **URL-encode it**, since it can contain `+`, `/` and `=` |
+| `review_type` | `0` All (default), `1` Positive, `2` Negative | Filter by sentiment |
+| `purchase_type` | `0` Steam (default), `1` All, `2` Non-Steam purchase | Filter by purchase source. The default skips reviews from Steam key activations |
+| `date_range_start`, `date_range_end` | Unix timestamps | Only reviews created in this window. Ignored unless both are set |
+| `playtime_min_hours`, `playtime_max_hours` | Hours | Filter by the author's playtime when they wrote the review |
+| `filter_offtopic_activity` | `true` (default), `false` | Off-topic "review bomb" reviews are hidden by default. Pass `false` to include them |
+| `key` | Publisher key | Optional. Gets you a higher rate limit (see below) |
 
-**Response includes:**
-- `query_summary`: `total_positive`, `total_negative`, `total_reviews`, `review_score`, `review_score_desc`
-- `reviews[]`: individual reviews with author info, playtime, language, text, `voted_up`, timestamp, helpfulness votes
+There are also Steam Deck and hardware filters (`primarily_steam_deck`, `hardware_os`, `hardware_gpu`, ...). See the [official docs](https://partner.steamgames.com/doc/webapi/IUserReviewsService) for the full list.
+
+**Response example:**
+```json
+{
+  "response": {
+    "query_summary": {
+      "num_reviews": 100,
+      "review_score": 8,
+      "review_score_desc": "Very Positive",
+      "total_positive": 112,
+      "total_negative": 14,
+      "total_reviews": 126
+    },
+    "reviews": [
+      {
+        "recommendationid": "123456789",
+        "author": {
+          "steamid": "76561198000000000",
+          "num_reviews": 4,
+          "playtime_forever": 610,
+          "playtime_last_two_weeks": 15,
+          "playtime_at_review": 480,
+          "last_played": 1791224192
+        },
+        "language": "english",
+        "review": "Great game, would play again.",
+        "timestamp_created": 1791224243,
+        "timestamp_updated": 1791225342,
+        "voted_up": true,
+        "votes_up": 3,
+        "votes_funny": 0,
+        "weighted_vote_score": 0.52,
+        "comment_count": 1,
+        "steam_purchase": true,
+        "received_for_free": false,
+        "written_during_early_access": false,
+        "developer_response": "Thanks for playing!",
+        "timestamp_dev_responded": 1791552591,
+        "primarily_steam_deck": false,
+        "refunded": false
+      }
+    ],
+    "cursor": "AoJwop++/5YDdOvi6QU=",
+    "total_matching": 126
+  }
+}
+```
+
+- The score fields (`review_score`, `review_score_desc`, `total_*`) only come back on the **first page**, and only when `review_type` is `0`. Save them from page 1.
+- Playtimes are in **minutes**. Timestamps are Unix seconds.
+- When you run out of reviews, the response has no `reviews` array at all and `num_reviews` is `0`.
+
+> ⚠️ **Rate limit:** Calls without a key share a lower rate limit (HTTP 429 when you hit it), and responses may be cached for up to 10 minutes. For a higher limit, add `&key={publisherKey}` with a publisher key for your app and call `partner.steam-api.com` instead of `api.steampowered.com`. Do this from your server only.
+
+> 💡 **`input_json`:** Steam's official docs pass the parameters as one URL-encoded JSON object: `?input_json={"appid":3349960,"filter":1,"languages":["all"]}`. Plain query parameters like the ones above work the same way, so use whichever is easier.
+
+**Getting every review** (JavaScript):
+
+```javascript
+async function getAllReviews(appid) {
+  const reviews = [];
+  let cursor = "*";
+  while (true) {
+    const params = new URLSearchParams({
+      appid,
+      filter: 1,            // 1 = Recent (use 1 or 2 when paging through everything)
+      "languages[0]": "all",
+      purchase_type: 1,     // 1 = All (the default, 0, is Steam purchases only)
+      num_per_page: 100,
+      cursor,               // URLSearchParams handles the encoding for you
+    });
+    const res = await fetch(
+      `https://api.steampowered.com/IUserReviewsService/GetAppReviews/v1/?${params}`
+    );
+    if (!res.ok) throw new Error(`HTTP ${res.status}`); // no "success" field anymore
+    const { response } = await res.json();
+    if (!response.reviews?.length) break; // empty page = you're done
+    reviews.push(...response.reviews);
+    cursor = response.cursor;
+  }
+  return reviews;
+}
+```
+
+#### Migrating from /appreviews
+
+If you used the old store endpoint, here's what changed:
+
+| Old (`store.steampowered.com/appreviews`) | New (`IUserReviewsService/GetAppReviews`) |
+|---|---|
+| `/appreviews/{appid}?json=1` | `/IUserReviewsService/GetAppReviews/v1/?appid={appid}` on `api.steampowered.com` |
+| `filter=all` / `recent` / `updated` | `filter=0` / `1` / `2` (numbers now, plus `3` for Funny) |
+| `review_type=all` / `positive` / `negative` | `review_type=0` / `1` / `2` |
+| `purchase_type=steam` / `all` / `non_steam_purchase` | `purchase_type=0` / `1` / `2` |
+| `language=all` | `languages[0]=all` (it's a list now) |
+| `"success": 1` in the response | Gone. Check the HTTP status instead |
+| `query_summary`, `reviews`, `cursor` at the top level | Wrapped in a `response` object |
+| `weighted_vote_score` sometimes a string | Always a number |
+| `author.personaname`, `profile_url`, `avatar`, `persona_status`, `num_games_owned` | Removed. Use `author.steamid` |
+| `reactions`, `app_release_date` | Removed |
+| (not available) | New: `developer_response`, `timestamp_dev_responded`, `total_matching`, `day_range_used`, plus date, playtime, Steam Deck and hardware filters |
+
+> ⚠️ **Old parameters fail silently.** If you only swap the URL, `filter=recent` and `language=all` are ignored without an error. You'll get HTTP 200 with English-only "Helpful" reviews from the last 30 days. Convert every parameter.
+
+Steam's own migration notes: [Migrating from /appreviews](https://partner.steamgames.com/doc/webapi/IUserReviewsService#migrating)
 
 ### News
 
@@ -580,7 +692,7 @@ Steam uses its own language codes for API calls and store pages. Some of these a
 
 > **Source:** [Steamworks Languages Documentation](https://partner.steamgames.com/doc/store/localization/languages)
 >
-> **Note:** API language codes are used with Steamworks client-side APIs. Web API language codes are used with the Steamworks Web API. Additional languages (Afrikaans, Albanian, Hebrew, Hindi, etc.) are available for store page language selection only and are not supported in APIs.
+> **Note:** API language codes are used with Steamworks client-side APIs. Web API language codes are used with the Steamworks Web API. One exception: the [Reviews](#reviews) endpoint (`GetAppReviews`) takes **API language codes** (`turkish`, not `tr`). Pass `tr` and you'll get zero reviews. Additional languages (Afrikaans, Albanian, Hebrew, Hindi, etc.) are available for store page language selection only and are not supported in APIs.
 
 > 💡 **Pro tip:** You can preview any Steam store page in a different language by adding `?l=` to the URL. For example: [`store.steampowered.com/app/3349960/okeygg/?l=turkish`](https://store.steampowered.com/app/3349960/okeygg/?l=turkish&utm_source=steamworks_api_simplified) shows the [okey.gg](https://store.steampowered.com/app/3349960?utm_source=steamworks_api_simplified) store page in Turkish. Use the API language codes from the table above (not the Web API codes).
 
@@ -673,6 +785,12 @@ Some days your game just doesn't sell. The API returns empty results for those d
 
 Each app has an `app_min_date` (returned in the wishlist response). Data before that date doesn't exist. Don't waste requests on dates before it.
 
+### The reviews API hides most reviews by default
+
+`GetAppReviews` only returns **English** reviews from **Steam purchases** unless you say otherwise. If your game has players in other languages or you gave out keys, you'll see far fewer reviews than your store page shows. Always pass `languages[0]=all` and `purchase_type=1`.
+
+It also fails silently on bad input. Old string values like `filter=recent` are ignored (you get the default Helpful sort), Web API language codes like `tr` return zero reviews, and an unencoded cursor with a `+` in it returns `{"response":{}}`.
+
 ---
 
 ## Error Reference
@@ -682,6 +800,8 @@ Each app has an `app_min_date` (returned in the wishlist response). Data before 
 | HTTP 403 + "Access is denied" HTML page | Wrong key type for this host | Use a publisher/financial key for `partner.steam-api.com`. A regular Web API key won't work. |
 | HTTP 200 + `{"response":{}}` | Key is valid but missing permission | Enable "Sales Data" permission on the publisher group in Steamworks |
 | HTTP 200 + `{"response":{"result":8}}` | No stats/data configured | Set up stats, achievements, or leaderboards in Steamworks first |
+| HTTP 200 + far fewer reviews than your store page shows | `GetAppReviews` defaults to English-only, Steam-purchase-only reviews | Add `languages[0]=all&purchase_type=1` |
+| HTTP 200 + `{"response":{}}` on page 2+ of reviews | Cursor wasn't URL-encoded | Encode the cursor (`encodeURIComponent` / `URLSearchParams`) |
 | HTTP 429 | Rate limited | Slow down. Add caching. |
 | Connection timeout on partner API | IP blocked by whitelist | Remove IP restrictions from key, or add your server IP |
 
@@ -708,6 +828,8 @@ Some endpoints return nothing until you configure the corresponding feature in S
 - [IPartnerFinancialsService](https://partner.steamgames.com/doc/webapi/IPartnerFinancialsService)
 - [Wishlist Reporting](https://partner.steamgames.com/doc/marketing/wishlist/reporting)
 - [Wishlist Data API Announcement](https://store.steampowered.com/news/group/4145017/view/499474120884358023)
+- [IUserReviewsService](https://partner.steamgames.com/doc/webapi/IUserReviewsService)
+- [User Reviews API Change Announcement](https://store.steampowered.com/news/group/4145017/view/676258795703241580)
 - [Full Interface List](https://partner.steamgames.com/doc/webapi)
 
 ---
@@ -748,5 +870,5 @@ If this guide saved you time, consider giving it a ⭐. It helps other indie dev
   We built this guide while integrating Steam APIs for our game <a href="https://store.steampowered.com/app/3349960?utm_source=steamworks_api_simplified">okey.gg</a>.<br>
   If it helped you out, a <a href="https://store.steampowered.com/app/3349960?utm_source=steamworks_api_simplified">wishlist</a> means the world to a small studio 🙏
   <br><br>
-  <sub>Last updated: April 2026</sub>
+  <sub>Last updated: October 2026</sub>
 </p>

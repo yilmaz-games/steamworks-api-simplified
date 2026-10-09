@@ -118,7 +118,7 @@ Endpoint'lere dalmadan önce, her veri türü için neye ihtiyacınız olduğunu
 |------------------|-------------|---------------------|
 | Anlık oyuncu sayısı | Anahtar gerekmez | api.steampowered.com |
 | Uygulama detayları, fiyatlandırma | Anahtar gerekmez | store.steampowered.com |
-| İncelemeler | Anahtar gerekmez | store.steampowered.com |
+| İncelemeler | Anahtar gerekmez | api.steampowered.com |
 | Haberler | Anahtar gerekmez | api.steampowered.com |
 | Başarım yüzdeleri | Anahtar gerekmez | api.steampowered.com |
 | **Satış ve gelir** | **Finansal anahtar** veya Publisher anahtar (Sales Data izni ile) | partner.steam-api.com |
@@ -253,23 +253,135 @@ GET https://store.steampowered.com/api/appdetails?appids={appid}&cc=cn
 
 ### İncelemeler
 
+> ⚠️ **Ekim 2026'da değişti.** Steam, eski `store.steampowered.com/appreviews/{appid}?json=1` endpoint'ini **22 Ekim 2026**'da kapatıyor. Kodunuz hâlâ onu kullanıyorsa aşağıdaki [Eski endpoint'ten geçiş](#eski-endpointten-geçiş) bölümüne bakın.
+
 ```
-GET https://store.steampowered.com/appreviews/{appid}?json=1&filter=recent&language=all&num_per_page=100
+GET https://api.steampowered.com/IUserReviewsService/GetAppReviews/v1/?appid={appid}&filter=1&languages[0]=all&purchase_type=1&num_per_page=100
 ```
+
+Herhangi bir uygulamanın herkese açık incelemelerinden bir sayfa ve inceleme puanı özetini döndürür. Anahtar gerekmez.
 
 **Parametreler:**
 | Parametre | Değerler | Açıklama |
 |-----------|---------|----------|
-| `filter` | `recent`, `updated`, `all` | Sıralama |
-| `language` | `all` veya dil kodu | Dile göre filtrele |
-| `num_per_page` | 1–100 | Sayfa başına sonuç |
-| `cursor` | `*` (ilk sayfa), sonra yanıttaki değer | Sayfalama |
-| `review_type` | `all`, `positive`, `negative` | Duyguya göre filtrele |
-| `purchase_type` | `all`, `steam`, `non_steam_purchase` | Satın alma kaynağına göre filtrele |
+| `appid` | Oyununuzun App ID'si | Zorunlu |
+| `filter` | `0` Helpful (varsayılan), `1` Recent, `2` Updated, `3` Funny | Sıralama. Helpful sadece son `day_range` güne (varsayılan 30) bakar, bu yüzden tüm incelemeleri sayfalamak için `1` veya `2` kullanın |
+| `languages[0]`, `languages[1]`, ... | `all` veya [API dil kodları](#steam-dil-kodları-language-codes) (`english`, `turkish`, ...) | **Varsayılan sadece İngilizce.** Tüm diller için `languages[0]=all` gönderin |
+| `num_per_page` | 1–100 | Sayfa başına sonuç (varsayılan 20) |
+| `cursor` | `*` (ilk sayfa), sonra yanıttaki değer | Sayfalama. `+`, `/` ve `=` içerebileceği için **URL-encode edin** |
+| `review_type` | `0` All (varsayılan), `1` Positive, `2` Negative | Duyguya göre filtrele |
+| `purchase_type` | `0` Steam (varsayılan), `1` All, `2` Non-Steam purchase | Satın alma kaynağına göre filtrele. Varsayılan değer, Steam anahtarı aktivasyonlarından gelen incelemeleri atlar |
+| `date_range_start`, `date_range_end` | Unix zaman damgaları | Sadece bu aralıkta yazılan incelemeler. İkisini birlikte gönderin, yoksa filtre uygulanmaz |
+| `playtime_min_hours`, `playtime_max_hours` | Saat | Yazarın inceleme anındaki oyun süresine göre filtrele |
+| `filter_offtopic_activity` | `true` (varsayılan), `false` | Konu dışı "review bomb" incelemeleri varsayılan olarak gizlenir. Dahil etmek için `false` gönderin |
+| `key` | Publisher anahtar | İsteğe bağlı. Daha yüksek hız limiti sağlar (aşağıya bakın) |
 
-**Yanıt içerir:**
-- `query_summary`: `total_positive`, `total_negative`, `total_reviews`, `review_score`, `review_score_desc`
-- `reviews[]`: yazar bilgisi, oyun süresi, dil, metin, `voted_up`, zaman damgası, faydalılık oyları içeren bireysel incelemeler
+Steam Deck ve donanım filtreleri de var (`primarily_steam_deck`, `hardware_os`, `hardware_gpu`, ...). Tam liste için [resmi dokümantasyona](https://partner.steamgames.com/doc/webapi/IUserReviewsService) bakın.
+
+**Yanıt örneği:**
+```json
+{
+  "response": {
+    "query_summary": {
+      "num_reviews": 100,
+      "review_score": 8,
+      "review_score_desc": "Very Positive",
+      "total_positive": 112,
+      "total_negative": 14,
+      "total_reviews": 126
+    },
+    "reviews": [
+      {
+        "recommendationid": "123456789",
+        "author": {
+          "steamid": "76561198000000000",
+          "num_reviews": 4,
+          "playtime_forever": 610,
+          "playtime_last_two_weeks": 15,
+          "playtime_at_review": 480,
+          "last_played": 1791224192
+        },
+        "language": "english",
+        "review": "Great game, would play again.",
+        "timestamp_created": 1791224243,
+        "timestamp_updated": 1791225342,
+        "voted_up": true,
+        "votes_up": 3,
+        "votes_funny": 0,
+        "weighted_vote_score": 0.52,
+        "comment_count": 1,
+        "steam_purchase": true,
+        "received_for_free": false,
+        "written_during_early_access": false,
+        "developer_response": "Thanks for playing!",
+        "timestamp_dev_responded": 1791552591,
+        "primarily_steam_deck": false,
+        "refunded": false
+      }
+    ],
+    "cursor": "AoJwop++/5YDdOvi6QU=",
+    "total_matching": 126
+  }
+}
+```
+
+- Puan alanları (`review_score`, `review_score_desc`, `total_*`) sadece **ilk sayfada** ve sadece `review_type` `0` olduğunda gelir. Bunları ilk sayfadan kaydedin.
+- Oyun süreleri **dakika** cinsindendir. Zaman damgaları Unix saniyesidir.
+- İncelemeler bittiğinde yanıtta `reviews` dizisi hiç olmaz ve `num_reviews` `0` olur.
+
+> ⚠️ **Hız limiti (Rate Limit):** Anahtarsız istekler daha düşük, ortak bir limiti paylaşır (aşınca HTTP 429 alırsınız) ve yanıtlar 10 dakikaya kadar önbellekte tutulabilir. Daha yüksek limit için oyununuza bağlı bir publisher anahtarla `&key={publisherKey}` ekleyin ve `api.steampowered.com` yerine `partner.steam-api.com` adresini kullanın. Bunu sadece sunucunuzdan yapın.
+
+> 💡 **`input_json`:** Steam'in resmi dokümantasyonu parametreleri URL-encode edilmiş tek bir JSON nesnesi olarak gönderir: `?input_json={"appid":3349960,"filter":1,"languages":["all"]}`. Yukarıdaki gibi düz query parametreleri de aynı şekilde çalışır, hangisi kolayınıza gelirse onu kullanın.
+
+**Tüm incelemeleri çekmek** (JavaScript):
+
+```javascript
+async function getAllReviews(appid) {
+  const reviews = [];
+  let cursor = "*";
+  while (true) {
+    const params = new URLSearchParams({
+      appid,
+      filter: 1,            // 1 = Recent (use 1 or 2 when paging through everything)
+      "languages[0]": "all",
+      purchase_type: 1,     // 1 = All (the default, 0, is Steam purchases only)
+      num_per_page: 100,
+      cursor,               // URLSearchParams handles the encoding for you
+    });
+    const res = await fetch(
+      `https://api.steampowered.com/IUserReviewsService/GetAppReviews/v1/?${params}`
+    );
+    if (!res.ok) throw new Error(`HTTP ${res.status}`); // no "success" field anymore
+    const { response } = await res.json();
+    if (!response.reviews?.length) break; // empty page = you're done
+    reviews.push(...response.reviews);
+    cursor = response.cursor;
+  }
+  return reviews;
+}
+```
+
+#### Eski endpoint'ten geçiş
+
+Eski mağaza endpoint'ini kullanıyorsanız değişenler şunlar:
+
+| Eski (`store.steampowered.com/appreviews`) | Yeni (`IUserReviewsService/GetAppReviews`) |
+|---|---|
+| `/appreviews/{appid}?json=1` | `api.steampowered.com` üzerinde `/IUserReviewsService/GetAppReviews/v1/?appid={appid}` |
+| `filter=all` / `recent` / `updated` | `filter=0` / `1` / `2` (artık sayı, Funny için ayrıca `3`) |
+| `review_type=all` / `positive` / `negative` | `review_type=0` / `1` / `2` |
+| `purchase_type=steam` / `all` / `non_steam_purchase` | `purchase_type=0` / `1` / `2` |
+| `language=all` | `languages[0]=all` (artık bir liste) |
+| Yanıtta `"success": 1` | Kaldırıldı. Bunun yerine HTTP durum kodunu kontrol edin |
+| En üst seviyede `query_summary`, `reviews`, `cursor` | Bir `response` nesnesinin içinde |
+| `weighted_vote_score` bazen string | Her zaman sayı |
+| `author.personaname`, `profile_url`, `avatar`, `persona_status`, `num_games_owned` | Kaldırıldı. `author.steamid` kullanın |
+| `reactions`, `app_release_date` | Kaldırıldı |
+| (yoktu) | Yeni: `developer_response`, `timestamp_dev_responded`, `total_matching`, `day_range_used`, ayrıca tarih, oyun süresi, Steam Deck ve donanım filtreleri |
+
+> ⚠️ **Eski parametreler sessizce başarısız olur.** Sadece URL'yi değiştirirseniz `filter=recent` ve `language=all` hata vermeden yok sayılır. HTTP 200 ile son 30 günün sadece İngilizce "Helpful" incelemelerini alırsınız. Her parametreyi dönüştürün.
+
+Steam'in kendi geçiş notları: [Migrating from /appreviews](https://partner.steamgames.com/doc/webapi/IUserReviewsService#migrating)
 
 ### Haberler
 
@@ -580,7 +692,7 @@ Steam, API çağrıları ve mağaza sayfaları için kendi dil kodlarını kulla
 
 > **Kaynak:** [Steamworks Dil Dokümantasyonu](https://partner.steamgames.com/doc/store/localization/languages)
 >
-> **Not:** API dil kodları Steamworks istemci tarafı API'lerinde kullanılır. Web API dil kodları ise Steamworks Web API'sinde kullanılır. Ek diller (Afrikanca, Arnavutça, İbranice, Hintçe vb.) sadece mağaza sayfası dil seçimi için mevcuttur ve API'lerde desteklenmez.
+> **Not:** API dil kodları Steamworks istemci tarafı API'lerinde kullanılır. Web API dil kodları ise Steamworks Web API'sinde kullanılır. Tek istisna: İncelemeler endpoint'i (`GetAppReviews`) **API dil kodlarını** kullanır (`tr` değil, `turkish`). `tr` gönderirseniz hiç inceleme gelmez. Ek diller (Afrikanca, Arnavutça, İbranice, Hintçe vb.) sadece mağaza sayfası dil seçimi için mevcuttur ve API'lerde desteklenmez.
 
 > 💡 **İpucu:** URL'ye `?l=` parametresi ekleyerek herhangi bir Steam mağaza sayfasını farklı bir dilde önizleyebilirsiniz. Örneğin: [`store.steampowered.com/app/3349960/okeygg/?l=turkish`](https://store.steampowered.com/app/3349960/okeygg/?l=turkish&utm_source=steamworks_api_simplified) [okey.gg](https://store.steampowered.com/app/3349960?utm_source=steamworks_api_simplified) mağaza sayfasını Türkçe gösterir. Yukarıdaki tablodan API dil kodlarını kullanın (Web API kodlarını değil).
 
@@ -673,6 +785,12 @@ Bazı günler oyununuz satılmaz. API bu tarihler için boş sonuç döndürür.
 
 Her uygulamanın bir `app_min_date` değeri vardır (istek listesi yanıtında döner). Bu tarihten önceki veriler mevcut değildir. Ondan önceki tarihler için istek harcamayın.
 
+### İnceleme API'si varsayılan olarak çoğu incelemeyi gizler
+
+`GetAppReviews`, aksini belirtmezseniz sadece **Steam'den satın alanların** yazdığı **İngilizce** incelemeleri döndürür. Oyununuzun başka dillerde oyuncuları varsa veya anahtar dağıttıysanız, mağaza sayfanızda gördüğünüzden çok daha az inceleme görürsünüz. Her zaman `languages[0]=all` ve `purchase_type=1` gönderin.
+
+Hatalı girdide de sessizce başarısız olur. `filter=recent` gibi eski string değerler yok sayılır (varsayılan Helpful sıralamasını alırsınız), `tr` gibi Web API dil kodları sıfır inceleme döndürür ve içinde `+` olan, URL-encode edilmemiş bir cursor `{"response":{}}` döndürür.
+
 ---
 
 ## Hata Referansı
@@ -682,6 +800,8 @@ Her uygulamanın bir `app_min_date` değeri vardır (istek listesi yanıtında d
 | HTTP 403 + "Access is denied" HTML sayfası | Bu sunucu için yanlış anahtar türü | `partner.steam-api.com` için publisher/finansal anahtar kullanın. Normal Web API anahtarı çalışmaz. |
 | HTTP 200 + `{"response":{}}` | Anahtar geçerli ama izin eksik | Steamworks'te publisher grubunda "Sales Data" iznini etkinleştirin |
 | HTTP 200 + `{"response":{"result":8}}` | İstatistik/veri yapılandırılmamış | Önce Steamworks'te istatistik, başarım veya sıralama tablosu oluşturun |
+| HTTP 200 + mağaza sayfanızdakinden çok daha az inceleme | `GetAppReviews` varsayılan olarak sadece İngilizce ve sadece Steam'den satın alanların incelemelerini döndürür | `languages[0]=all&purchase_type=1` ekleyin |
+| İncelemelerin 2. ve sonraki sayfalarında HTTP 200 + `{"response":{}}` | Cursor URL-encode edilmemiş | Cursor'ı encode edin (`encodeURIComponent` / `URLSearchParams`) |
 | HTTP 429 | Hız limiti aşıldı | Yavaşlayın. Önbellekleme ekleyin. |
 | Partner API'de bağlantı zaman aşımı | IP beyaz listesi tarafından engellendi | Anahtardaki IP kısıtlamalarını kaldırın veya sunucu IP'nizi ekleyin |
 
@@ -708,6 +828,8 @@ Bazı endpoint'ler, ilgili özelliği Steamworks'te yapılandırana kadar hiçbi
 - [IPartnerFinancialsService](https://partner.steamgames.com/doc/webapi/IPartnerFinancialsService)
 - [İstek Listesi Raporlama](https://partner.steamgames.com/doc/marketing/wishlist/reporting)
 - [İstek Listesi Veri API Duyurusu](https://store.steampowered.com/news/group/4145017/view/499474120884358023)
+- [IUserReviewsService](https://partner.steamgames.com/doc/webapi/IUserReviewsService)
+- [Kullanıcı İncelemeleri API Değişikliği Duyurusu](https://store.steampowered.com/news/group/4145017/view/676258795703241580)
 - [Tam Arayüz Listesi](https://partner.steamgames.com/doc/webapi)
 
 ---
@@ -748,5 +870,5 @@ Bu rehber size zaman kazandırdıysa, bir ⭐ vermeyi düşünün. Diğer indie 
   Bu rehberi <a href="https://store.steampowered.com/app/3349960?utm_source=steamworks_api_simplified">okey.gg</a> oyunumuz için Steam API'lerini entegre ederken hazırladık.<br>
   İşinize yaradıysa, bir <a href="https://store.steampowered.com/app/3349960?utm_source=steamworks_api_simplified">istek listesi</a> eklemeniz küçük bir stüdyo için dünyalara bedel 🙏
   <br><br>
-  <sub>Son güncelleme: Nisan 2026</sub>
+  <sub>Son güncelleme: Ekim 2026</sub>
 </p>

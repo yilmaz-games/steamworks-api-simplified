@@ -10,7 +10,8 @@ description: >
   "Steam player count", "Steam reviews", "Steam pricing", "partner.steam-api.com",
   "IPartnerFinancialsService", "Steam API key", "publisher key", "financial key",
   "appdetails", "GetDetailedSales", "Steam current players", "Steam achievements API",
-  "Steam leaderboard API", "Steam microtransactions". Use this even when the user doesn't
+  "Steam leaderboard API", "Steam microtransactions", "GetAppReviews", "IUserReviewsService",
+  "appreviews". Use this even when the user doesn't
   say "API" explicitly but clearly needs Steam data programmatically — e.g., "how do I get
   my game's sales numbers in code" or "I want to build a dashboard for my Steam game."
 ---
@@ -74,6 +75,19 @@ What's the symptom?
 │  → Rate limited. Suggest caching.
 │  → Store API limit: ~200 requests per 5 minutes
 │
+├─ Old reviews endpoint (store.steampowered.com/appreviews) stopped working
+│  → Steam disabled it on October 22, 2026
+│  → Fix: Migrate to IUserReviewsService/GetAppReviews (see Reviews below)
+│
+├─ Reviews: far fewer than the store page shows, or English only
+│  → GetAppReviews defaults to English-only and Steam-purchase-only
+│  → Fix: Add languages[0]=all and purchase_type=1
+│  → Also check: Old string params (filter=recent, language=all) are silently ignored
+│  → Also check: Web API language codes (tr) return nothing; use API codes (turkish)
+│
+├─ Reviews: {"response":{}} on page 2+
+│  → Cursor wasn't URL-encoded (it can contain +, /, =)
+│
 ├─ Getting data but it seems wrong or empty for certain dates
 │  → Check: Are they using the right timezone? (Sales = Pacific Time, Wishlists = GMT)
 │  → Check: Are they requesting a date before app_min_date for wishlist data?
@@ -107,7 +121,7 @@ When the user needs to choose an API key:
 | Host | When to use | Protocol | Key? |
 |------|-------------|----------|------|
 | `api.steampowered.com` | Public game data | HTTP or HTTPS | Usually no |
-| `store.steampowered.com` | Store page data (app details, reviews, pricing) | HTTPS | No |
+| `store.steampowered.com` | Store page data (app details, pricing) | HTTPS | No |
 | `partner.steam-api.com` | Business data (sales, wishlists, stats) | **HTTPS only** | Always |
 
 Partner API IP ranges (for firewall whitelisting): `208.64.200.0/22`, `155.133.239.0/24`
@@ -132,11 +146,19 @@ GET https://store.steampowered.com/api/appdetails?appids={appid}&cc={country_cod
 Returns store page data. `price_overview` has `currency`, `initial` (cents), `final` (cents), `discount_percent`.
 Rate limit: ~200 req / 5 min — cache aggressively.
 
-**Reviews**
+**Reviews** (`IUserReviewsService/GetAppReviews`)
 ```
-GET https://store.steampowered.com/appreviews/{appid}?json=1&filter=recent&language=all&num_per_page=100
+GET https://api.steampowered.com/IUserReviewsService/GetAppReviews/v1/?appid={appid}&filter=1&languages[0]=all&purchase_type=1&num_per_page=100
 ```
-Params: `filter` (recent|updated|all), `language`, `num_per_page` (1-100), `cursor` (* for first), `review_type` (all|positive|negative), `purchase_type` (all|steam|non_steam_purchase).
+- Replaces `store.steampowered.com/appreviews/{appid}?json=1`, which Steam disabled on **October 22, 2026**
+- Params are **numbers**, not strings: `filter` (0=Helpful default, 1=Recent, 2=Updated, 3=Funny), `review_type` (0=All, 1=Positive, 2=Negative), `purchase_type` (0=Steam default, 1=All, 2=Non-Steam)
+- `languages[0]`, `languages[1]`, ... take API language codes (`english`, `turkish`) or `all`. **Default is English only**
+- `num_per_page` (1-100, default 20), `cursor` (`*` first, then from response, **URL-encode it**)
+- Extra filters: `date_range_start`/`date_range_end` (Unix, set both), `playtime_min_hours`/`playtime_max_hours`, `filter_offtopic_activity=false` to include review bombs, `day_range` (Helpful only, default 30)
+- Use `filter=1` or `2` to page through everything. Helpful only searches the last `day_range` days
+- Response is wrapped in `response`. No `success` field, so check HTTP status. Score fields (`review_score`, `total_*`) only on page 1 when `review_type=0`. Empty page = no `reviews` key
+- No key needed. Anonymous calls share a lower rate limit (429) and may be cached for 10 min. For a higher limit, add a publisher key and call `partner.steam-api.com` from a server
+- Migration from old endpoint: `language=all` → `languages[0]=all`, string enums → numbers, `author.personaname`/`avatar`/`profile_url`/`num_games_owned` removed (use `author.steamid`), `weighted_vote_score` is always a number, new `developer_response` and `total_matching` fields
 
 **News**
 ```
@@ -259,7 +281,7 @@ Never help the user put publisher or financial API keys in client-side code, gam
 
 ## Steam language codes
 
-Steam uses non-standard language codes. The surprising ones: `schinese` (Simplified Chinese), `tchinese` (Traditional Chinese), `brazilian` (Brazilian Portuguese), `koreana` (Korean), `latam` (Latin American Spanish). Full table is in the [source guide](https://github.com/yilmaz-games/steamworks-api-simplified#steam-language-codes).
+Steam uses non-standard language codes. The surprising ones: `schinese` (Simplified Chinese), `tchinese` (Traditional Chinese), `brazilian` (Brazilian Portuguese), `koreana` (Korean), `latam` (Latin American Spanish). `GetAppReviews` uses these API codes, not ISO codes (`tr` returns nothing). Full table is in the [source guide](https://github.com/yilmaz-games/steamworks-api-simplified#steam-language-codes).
 
 ---
 
@@ -268,6 +290,7 @@ Steam uses non-standard language codes. The surprising ones: `schinese` (Simplif
 - [Web API Overview](https://partner.steamgames.com/doc/webapi_overview)
 - [Authentication & Key Types](https://partner.steamgames.com/doc/webapi_overview/auth)
 - [IPartnerFinancialsService](https://partner.steamgames.com/doc/webapi/IPartnerFinancialsService)
+- [IUserReviewsService](https://partner.steamgames.com/doc/webapi/IUserReviewsService)
 - [Full Interface List](https://partner.steamgames.com/doc/webapi)
 - [Wishlist Reporting](https://partner.steamgames.com/doc/marketing/wishlist/reporting)
 - [Packages Documentation](https://partner.steamgames.com/doc/store/application/packages)
