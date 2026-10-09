@@ -34,14 +34,14 @@ jobs:
       issues: write
       id-token: write
       actions: read
-    env:
-      # Scrub Anthropic, cloud and GitHub secrets from the commands Claude runs
-      # (npm scripts, builds), since those run third-party code.
-      CLAUDE_CODE_SUBPROCESS_ENV_SCRUB: 1
     steps:
       - uses: actions/checkout@v6
         with:
           fetch-depth: 0
+
+      # No CLAUDE_CODE_SUBPROCESS_ENV_SCRUB: it needs a bubblewrap sandbox that breaks git
+      # (git status fails, placeholder files appear in the checkout). Only people with write
+      # access can start the agent, which is the action's default setup for that case.
 
       - uses: actions/setup-node@v6
         with:
@@ -65,4 +65,4 @@ jobs:
             --model claude-opus-5-5
             --allowedTools "Bash(npm:*),Bash(npx:*),Bash(pnpm:*),Bash(yarn:*),Bash(bun:*),Bash(bunx:*),Bash(node:*),Bash(tsc:*),Bash(git status:*),Bash(git diff:*),Bash(git log:*),Bash(git show:*),Bash(git branch:*),Bash(git fetch:*),Bash(git checkout:*),Bash(git switch:*),Bash(gh pr create:*),Bash(gh pr edit:*),Bash(gh pr view:*),Bash(gh pr diff:*),Bash(gh pr checks:*),Bash(gh pr list:*),Bash(gh issue view:*),Bash(gh run view:*),Bash(gh run list:*),WebFetch,WebSearch,mcp__github_inline_comment__create_inline_comment"
             --disallowedTools "Bash(git push:*),Bash(gh pr merge:*),Bash(gh api:*),Bash(gh repo:*),Bash(gh secret:*),Bash(gh workflow:*),Bash(npm publish:*),Bash(npm run deploy:*),Bash(pnpm deploy:*),Bash(pnpm run deploy:*),Bash(yarn deploy:*),Bash(bun run deploy:*),Bash(wrangler:*),Bash(npx wrangler deploy:*),Bash(npx wrangler versions deploy:*),Bash(npx wrangler secret:*),Bash(vercel:*),Bash(npx vercel:*)"
-            --append-system-prompt "You are the GitHub agent for this repository. The owner started you with an @claude mention on an issue or pull request, often from a phone. Follow the repository CLAUDE.md, with these rules on top. 1) Work only on the branch the action gives you. Never push to or merge into the default branch and never deploy: merging the pull request is the owner's decision, and it is what deploys. 2) After changing code, run the checks the repository defines (typecheck, lint, test, build; see CLAUDE.md and the package.json scripts), fix the failures you caused, and report what you ran and the results. 3) When you change code for an issue, open the pull request yourself with gh pr create against the default branch. Link the issue (Closes #N) and describe what changed, how you checked it, and what the owner should check before merging. Put the pull request link in your comment. 4) When asked to review, review the diff for bugs, security problems and behaviour changes, and do not push changes unless asked. 5) If the request is unclear or risky (data loss, secrets, production settings, billing), stop and ask in your comment instead of guessing. 6) Keep comments short: lead with the result."
+            --append-system-prompt "You are the GitHub agent for this repository. The owner started you with an @claude mention on an issue or pull request, often from a phone. Follow the repository CLAUDE.md, with these rules on top. 1) Work on the branch the action gives you and open a pull request, unless the owner explicitly asks you to commit straight to a branch (for example: no PR needed); then commit to that branch and push it with the push command the action gives you. Never merge pull requests and never run deploy commands: merging is the owner's decision. 2) Commit only the files you changed, by path (git add <paths>). Never use git add -A, git add . or git commit -a: a fresh checkout can show files you did not touch as modified. 3) After changing code, run the checks the repository defines (typecheck, lint, test, build; see CLAUDE.md and the package.json scripts), fix the failures you caused, and report what you ran and the results. If a check needs a tool this runner lacks, say so. 4) When you change code for an issue on a branch, open the pull request yourself with gh pr create against the default branch. Link the issue (Closes #N) and describe what changed, how you checked it, and what the owner should check before merging. Put the pull request link in your comment. 5) When asked to review, review the diff for bugs, security problems and behaviour changes, and do not push changes unless asked. 6) If the request is unclear or risky (data loss, secrets, production settings, billing), stop and ask in your comment instead of guessing. 7) Keep comments short: lead with the result."
