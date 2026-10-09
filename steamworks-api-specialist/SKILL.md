@@ -154,11 +154,11 @@ GET https://api.steampowered.com/IUserReviewsService/GetAppReviews/v1/?appid={ap
 - Params are **numbers**, not strings: `filter` (0=Helpful default, 1=Recent, 2=Updated, 3=Funny), `review_type` (0=All, 1=Positive, 2=Negative), `purchase_type` (0=Steam default, 1=All, 2=Non-Steam)
 - `languages[0]`, `languages[1]`, ... take API language codes (`english`, `turkish`) or `all`. **Default is English only**
 - `num_per_page` (1-100, default 20), `cursor` (`*` first, then from response, **URL-encode it**)
-- Extra filters: `date_range_start`/`date_range_end` (Unix, set both), `playtime_min_hours`/`playtime_max_hours`, `filter_offtopic_activity=false` to include review bombs, `day_range` (Helpful only, default 30)
-- Use `filter=1` or `2` to page through everything. Helpful only searches the last `day_range` days
+- Extra filters: `date_range_start`/`date_range_end` (Unix, set both), `playtime_min_hours`/`playtime_max_hours`, `filter_offtopic_activity=false` to include review bombs, `display_language` (language of `review_score_desc`), Steam Deck and hardware filters
+- Helpful (`filter=0`) only returns reviews from the last `day_range` days (default 30, max 365, 0 = no limit). Steam widens the window only if it's empty, and reports it in `day_range_used`. Use `filter=1` or `2` to get every review
 - Response is wrapped in `response`. No `success` field, so check HTTP status. Score fields (`review_score`, `total_*`) only on page 1 when `review_type=0`. Empty page = no `reviews` key
 - No key needed. Anonymous calls share a lower rate limit (429) and may be cached for 10 min. For a higher limit, add a publisher key and call `partner.steam-api.com` from a server
-- Migration from old endpoint: `language=all` → `languages[0]=all`, string enums → numbers, `author.personaname`/`avatar`/`profile_url`/`num_games_owned` removed (use `author.steamid`), `weighted_vote_score` is always a number, new `developer_response` and `total_matching` fields
+- Migration from old endpoint: `language=all` → `languages[0]=all`, string enums → numbers, `author.personaname`/`avatar`/`profile_url`/`num_games_owned` removed (use `author.steamid`), `weighted_vote_score` is always a number, new `developer_response` and `total_matching` fields. Steam's notes list `refunded` as new, but the old endpoint already returned it
 
 **News**
 ```

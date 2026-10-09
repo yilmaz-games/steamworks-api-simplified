@@ -6,6 +6,8 @@ Ein praktischer Guide zur Steamworks Web API mit Verkaufsdaten, Wunschlisten-Rep
 
 🌍 *[English](../README.md) · [Türkçe](README.tr.md)*
 
+> 📢 **Achtung:** Steam schaltet den alten Reviews-Endpoint (`store.steampowered.com/appreviews`) am **22. Oktober 2026** ab. Wenn du Reviews abrufst, sieh dir [Migration von /appreviews](#migration-von-appreviews) an.
+
 ---
 
 Du hast dein Spiel auf Steam veröffentlicht. Glückwunsch! Jetzt brauchst du Daten: wie viele Leute spielen gerade, was sagen die Reviews, wie laufen die Verkäufe, woher kommen die Wunschlisten-Einträge.
@@ -265,7 +267,8 @@ Gibt eine Seite mit öffentlichen Reviews für eine beliebige App zurück, plus 
 | Parameter | Werte | Beschreibung |
 |-----------|-------|-------------|
 | `appid` | Deine App ID | Pflicht |
-| `filter` | `0` Helpful (Standard), `1` Recent, `2` Updated, `3` Funny | Sortierung. Helpful durchsucht nur die letzten `day_range` Tage (Standard 30), nutze also `1` oder `2`, um durch alle Reviews zu blättern |
+| `filter` | `0` Helpful (Standard), `1` Recent, `2` Updated, `3` Funny | Sortierung. Helpful liefert nur Reviews der letzten `day_range` Tage (wird automatisch erweitert, wenn der Zeitraum leer ist), nutze also `1` oder `2`, um alle Reviews zu bekommen |
+| `day_range` | Tage. Standard 30, max. 365, `0` = kein Limit | Nur für Helpful. Wenn der Zeitraum keine Reviews enthält, erweitert Steam ihn. `day_range_used` in der Antwort zeigt, welcher Zeitraum tatsächlich durchsucht wurde |
 | `languages[0]`, `languages[1]`, ... | `all` oder [API-Sprachcodes](#steam-sprachcodes-language-codes) (`english`, `german`, ...) | **Standard ist nur Englisch.** Übergib `languages[0]=all` für alle Sprachen |
 | `num_per_page` | 1–100 | Ergebnisse pro Seite (Standard 20) |
 | `cursor` | `*` (erste Seite), dann Wert aus Antwort | Paginierung. **URL-encoden**, da er `+`, `/` und `=` enthalten kann |
@@ -276,7 +279,7 @@ Gibt eine Seite mit öffentlichen Reviews für eine beliebige App zurück, plus 
 | `filter_offtopic_activity` | `true` (Standard), `false` | Off-Topic-Reviews ("Review Bombs") sind standardmäßig ausgeblendet. Übergib `false`, um sie einzuschließen |
 | `key` | Publisher Key | Optional. Bringt dir ein höheres Rate Limit (siehe unten) |
 
-Es gibt außerdem Steam-Deck- und Hardware-Filter (`primarily_steam_deck`, `hardware_os`, `hardware_gpu`, ...). Die vollständige Liste findest du in der [offiziellen Doku](https://partner.steamgames.com/doc/webapi/IUserReviewsService).
+Es gibt außerdem `display_language` (Sprache von `review_score_desc`) sowie Steam-Deck- und Hardware-Filter (`primarily_steam_deck`, `hardware_os`, `hardware_gpu`, ...). Die vollständige Liste findest du in der [offiziellen Doku](https://partner.steamgames.com/doc/webapi/IUserReviewsService).
 
 **Antwort-Beispiel:**
 ```json
@@ -361,9 +364,57 @@ async function getAllReviews(appid) {
 }
 ```
 
+<details>
+<summary><b>Python-Version</b></summary>
+
+```python
+import requests
+
+def get_all_reviews(appid):
+    reviews = []
+    cursor = "*"
+    while True:
+        response = requests.get(
+            "https://api.steampowered.com/IUserReviewsService/GetAppReviews/v1/",
+            params={
+                "appid": appid,
+                "filter": 1,              # 1 = Recent (use 1 or 2 when paging through everything)
+                "languages[0]": "all",
+                "purchase_type": 1,       # 1 = All (the default, 0, is Steam purchases only)
+                "num_per_page": 100,
+                "cursor": cursor,         # requests handles the encoding for you
+            },
+        )
+        response.raise_for_status()       # no "success" field anymore
+        data = response.json()["response"]
+        if not data.get("reviews"):
+            break                         # empty page = you're done
+        reviews.extend(data["reviews"])
+        cursor = data["cursor"]
+    return reviews
+```
+
+</details>
+
 #### Migration von /appreviews
 
-Wenn du den alten Store-Endpoint verwendet hast, hat sich Folgendes geändert:
+Wenn du den alten Store-Endpoint verwendet hast, so stellst du um.
+
+**Die Kurzfassung:** Tausche die URL und die Parameterwerte aus und lies die Daten dann aus `response`.
+
+```diff
+- https://store.steampowered.com/appreviews/{appid}?json=1&filter=recent&language=all&purchase_type=all&num_per_page=100
++ https://api.steampowered.com/IUserReviewsService/GetAppReviews/v1/?appid={appid}&filter=1&languages[0]=all&purchase_type=1&num_per_page=100
+```
+
+```diff
+- const { success, query_summary, reviews, cursor } = await res.json();
+- if (success !== 1) throw new Error("Steam error");
++ if (!res.ok) throw new Error(`HTTP ${res.status}`);
++ const { query_summary, reviews = [], cursor } = (await res.json()).response;
+```
+
+**Alles, was sich geändert hat:**
 
 | Alt (`store.steampowered.com/appreviews`) | Neu (`IUserReviewsService/GetAppReviews`) |
 |---|---|
@@ -379,7 +430,9 @@ Wenn du den alten Store-Endpoint verwendet hast, hat sich Folgendes geändert:
 | `reactions`, `app_release_date` | Entfernt |
 | (nicht verfügbar) | Neu: `developer_response`, `timestamp_dev_responded`, `total_matching`, `day_range_used`, plus Datums-, Spielzeit-, Steam-Deck- und Hardware-Filter |
 
-> ⚠️ **Alte Parameter scheitern lautlos.** Wenn du nur die URL austauschst, werden `filter=recent` und `language=all` ohne Fehler ignoriert. Du bekommst HTTP 200 mit ausschließlich englischen "Helpful"-Reviews der letzten 30 Tage. Konvertiere jeden Parameter.
+> Steams Migrationshinweise führen `refunded` ebenfalls als neues Feld auf. Der alte Endpoint hat es in unseren Tests bereits zurückgegeben. Wenn dein Code es liest, ändert sich also nichts.
+
+> ⚠️ **Alte Parameter scheitern lautlos.** Wenn du nur die URL austauschst, werden `filter=recent` und `language=all` ohne Fehler ignoriert. Du bekommst HTTP 200 mit ausschließlich englischen Reviews, sortiert nach Helpful und meist nur aus den letzten 30 Tagen. Konvertiere jeden Parameter.
 
 Steams eigene Migrationshinweise: [Migrating from /appreviews](https://partner.steamgames.com/doc/webapi/IUserReviewsService#migrating)
 
@@ -800,6 +853,7 @@ Außerdem scheitert sie bei falschen Eingaben lautlos. Alte String-Werte wie `fi
 | HTTP 403 + "Access is denied" HTML-Seite | Falscher Schlüsseltyp für diesen Host | Verwende einen Publisher/Financial Key für `partner.steam-api.com`. Ein normaler Web API Key funktioniert nicht. |
 | HTTP 200 + `{"response":{}}` | Schlüssel ist gültig, aber Berechtigung fehlt | Aktiviere "Sales Data"-Berechtigung in der Publisher-Gruppe in Steamworks |
 | HTTP 200 + `{"response":{"result":8}}` | Keine Statistiken/Daten konfiguriert | Erstelle zuerst Statistiken, Achievements oder Bestenlisten in Steamworks |
+| Aufrufe an `store.steampowered.com/appreviews` funktionieren nicht mehr | Steam hat den Endpoint am 22. Oktober 2026 abgeschaltet | Wechsle zu `GetAppReviews`. Siehe [Migration von /appreviews](#migration-von-appreviews) |
 | HTTP 200 + viel weniger Reviews als auf deiner Store-Seite | `GetAppReviews` liefert standardmäßig nur englische Reviews von Steam-Käufen | Füge `languages[0]=all&purchase_type=1` hinzu |
 | HTTP 200 + `{"response":{}}` ab Seite 2 der Reviews | Cursor wurde nicht URL-encodet | Encode den Cursor (`encodeURIComponent` / `URLSearchParams`) |
 | HTTP 429 | Rate Limit erreicht | Langsamer machen. Caching hinzufügen. |

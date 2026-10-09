@@ -6,6 +6,8 @@ Satış verileri, istek listesi raporlama, incelemeler, oyuncu sayıları, başa
 
 🌍 *[English](../README.md) · [Deutsch](README.de.md)*
 
+> 📢 **Dikkat:** Steam, eski inceleme endpoint'ini (`store.steampowered.com/appreviews`) **22 Ekim 2026**'da kapatıyor. İnceleme çekiyorsanız [Eski endpoint'ten geçiş](#eski-endpointten-geçiş) bölümüne bakın.
+
 ---
 
 Oyununuzu Steam'de yayınladınız. Tebrikler! Şimdi veriye ihtiyacınız var: kaç kişi oynuyor, incelemeler ne diyor, satışlar nasıl gidiyor, istek listesi eklemeleri nereden geliyor.
@@ -265,7 +267,8 @@ Herhangi bir uygulamanın herkese açık incelemelerinden bir sayfa ve inceleme 
 | Parametre | Değerler | Açıklama |
 |-----------|---------|----------|
 | `appid` | Oyununuzun App ID'si | Zorunlu |
-| `filter` | `0` Helpful (varsayılan), `1` Recent, `2` Updated, `3` Funny | Sıralama. Helpful sadece son `day_range` güne (varsayılan 30) bakar, bu yüzden tüm incelemeleri sayfalamak için `1` veya `2` kullanın |
+| `filter` | `0` Helpful (varsayılan), `1` Recent, `2` Updated, `3` Funny | Sıralama. Helpful sadece son `day_range` gündeki incelemeleri döndürür (o aralık boşsa otomatik genişletilir), bu yüzden tüm incelemeler için `1` veya `2` kullanın |
+| `day_range` | Gün sayısı. Varsayılan 30, en fazla 365, `0` = sınırsız | Sadece Helpful için. Bu aralıkta inceleme yoksa Steam aralığı genişletir. Yanıttaki `day_range_used` gerçekte hangi aralığa bakıldığını söyler |
 | `languages[0]`, `languages[1]`, ... | `all` veya [API dil kodları](#steam-dil-kodları-language-codes) (`english`, `turkish`, ...) | **Varsayılan sadece İngilizce.** Tüm diller için `languages[0]=all` gönderin |
 | `num_per_page` | 1–100 | Sayfa başına sonuç (varsayılan 20) |
 | `cursor` | `*` (ilk sayfa), sonra yanıttaki değer | Sayfalama. `+`, `/` ve `=` içerebileceği için **URL-encode edin** |
@@ -276,7 +279,7 @@ Herhangi bir uygulamanın herkese açık incelemelerinden bir sayfa ve inceleme 
 | `filter_offtopic_activity` | `true` (varsayılan), `false` | Konu dışı "review bomb" incelemeleri varsayılan olarak gizlenir. Dahil etmek için `false` gönderin |
 | `key` | Publisher anahtar | İsteğe bağlı. Daha yüksek hız limiti sağlar (aşağıya bakın) |
 
-Steam Deck ve donanım filtreleri de var (`primarily_steam_deck`, `hardware_os`, `hardware_gpu`, ...). Tam liste için [resmi dokümantasyona](https://partner.steamgames.com/doc/webapi/IUserReviewsService) bakın.
+Ayrıca `display_language` (`review_score_desc` dili) ile Steam Deck ve donanım filtreleri de var (`primarily_steam_deck`, `hardware_os`, `hardware_gpu`, ...). Tam liste için [resmi dokümantasyona](https://partner.steamgames.com/doc/webapi/IUserReviewsService) bakın.
 
 **Yanıt örneği:**
 ```json
@@ -361,9 +364,57 @@ async function getAllReviews(appid) {
 }
 ```
 
+<details>
+<summary><b>Python sürümü</b></summary>
+
+```python
+import requests
+
+def get_all_reviews(appid):
+    reviews = []
+    cursor = "*"
+    while True:
+        response = requests.get(
+            "https://api.steampowered.com/IUserReviewsService/GetAppReviews/v1/",
+            params={
+                "appid": appid,
+                "filter": 1,              # 1 = Recent (use 1 or 2 when paging through everything)
+                "languages[0]": "all",
+                "purchase_type": 1,       # 1 = All (the default, 0, is Steam purchases only)
+                "num_per_page": 100,
+                "cursor": cursor,         # requests handles the encoding for you
+            },
+        )
+        response.raise_for_status()       # no "success" field anymore
+        data = response.json()["response"]
+        if not data.get("reviews"):
+            break                         # empty page = you're done
+        reviews.extend(data["reviews"])
+        cursor = data["cursor"]
+    return reviews
+```
+
+</details>
+
 #### Eski endpoint'ten geçiş
 
-Eski mağaza endpoint'ini kullanıyorsanız değişenler şunlar:
+Eski mağaza endpoint'ini kullanıyorsanız geçiş şöyle yapılır.
+
+**Kısa versiyon:** URL'yi ve parametre değerlerini değiştirin, sonra verileri `response` içinden okuyun.
+
+```diff
+- https://store.steampowered.com/appreviews/{appid}?json=1&filter=recent&language=all&purchase_type=all&num_per_page=100
++ https://api.steampowered.com/IUserReviewsService/GetAppReviews/v1/?appid={appid}&filter=1&languages[0]=all&purchase_type=1&num_per_page=100
+```
+
+```diff
+- const { success, query_summary, reviews, cursor } = await res.json();
+- if (success !== 1) throw new Error("Steam error");
++ if (!res.ok) throw new Error(`HTTP ${res.status}`);
++ const { query_summary, reviews = [], cursor } = (await res.json()).response;
+```
+
+**Değişen her şey:**
 
 | Eski (`store.steampowered.com/appreviews`) | Yeni (`IUserReviewsService/GetAppReviews`) |
 |---|---|
@@ -379,7 +430,9 @@ Eski mağaza endpoint'ini kullanıyorsanız değişenler şunlar:
 | `reactions`, `app_release_date` | Kaldırıldı |
 | (yoktu) | Yeni: `developer_response`, `timestamp_dev_responded`, `total_matching`, `day_range_used`, ayrıca tarih, oyun süresi, Steam Deck ve donanım filtreleri |
 
-> ⚠️ **Eski parametreler sessizce başarısız olur.** Sadece URL'yi değiştirirseniz `filter=recent` ve `language=all` hata vermeden yok sayılır. HTTP 200 ile son 30 günün sadece İngilizce "Helpful" incelemelerini alırsınız. Her parametreyi dönüştürün.
+> Steam'in geçiş notları `refunded` alanını da yeni olarak listeliyor. Eski endpoint bizim testlerimizde bu alanı zaten döndürüyordu, yani kodunuz onu okuyorsa bir şey değişmez.
+
+> ⚠️ **Eski parametreler sessizce başarısız olur.** Sadece URL'yi değiştirirseniz `filter=recent` ve `language=all` hata vermeden yok sayılır. HTTP 200 ile Helpful'a göre sıralanmış, sadece İngilizce ve genellikle sadece son 30 güne ait incelemeler alırsınız. Her parametreyi dönüştürün.
 
 Steam'in kendi geçiş notları: [Migrating from /appreviews](https://partner.steamgames.com/doc/webapi/IUserReviewsService#migrating)
 
@@ -800,6 +853,7 @@ Hatalı girdide de sessizce başarısız olur. `filter=recent` gibi eski string 
 | HTTP 403 + "Access is denied" HTML sayfası | Bu sunucu için yanlış anahtar türü | `partner.steam-api.com` için publisher/finansal anahtar kullanın. Normal Web API anahtarı çalışmaz. |
 | HTTP 200 + `{"response":{}}` | Anahtar geçerli ama izin eksik | Steamworks'te publisher grubunda "Sales Data" iznini etkinleştirin |
 | HTTP 200 + `{"response":{"result":8}}` | İstatistik/veri yapılandırılmamış | Önce Steamworks'te istatistik, başarım veya sıralama tablosu oluşturun |
+| `store.steampowered.com/appreviews` çağrıları artık çalışmıyor | Steam bu endpoint'i 22 Ekim 2026'da kapattı | `GetAppReviews`'a geçin. [Eski endpoint'ten geçiş](#eski-endpointten-geçiş) bölümüne bakın |
 | HTTP 200 + mağaza sayfanızdakinden çok daha az inceleme | `GetAppReviews` varsayılan olarak sadece İngilizce ve sadece Steam'den satın alanların incelemelerini döndürür | `languages[0]=all&purchase_type=1` ekleyin |
 | İncelemelerin 2. ve sonraki sayfalarında HTTP 200 + `{"response":{}}` | Cursor URL-encode edilmemiş | Cursor'ı encode edin (`encodeURIComponent` / `URLSearchParams`) |
 | HTTP 429 | Hız limiti aşıldı | Yavaşlayın. Önbellekleme ekleyin. |
